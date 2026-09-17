@@ -7,11 +7,18 @@ const fs = require('fs');
 const ROOT = __dirname;
 const PORT = Number(process.env.AI_CRM_UPSTREAM_PORT || 13096);
 const UPSTREAM = `http://127.0.0.1:${PORT}`;
-const PYTHON =
-  process.env.AI_CRM_PYTHON ||
-  path.join(ROOT, '.venv', 'bin', 'python');
 const PID_FILE = path.join(ROOT, 'tmp', 'uvicorn.pid');
 const LOG_FILE = path.join(ROOT, 'tmp', 'uvicorn.log');
+const LOCK_FILE = path.join(ROOT, 'tmp', 'uvicorn.lock');
+
+function pidAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 function isUp(cb) {
   const req = http.get(`${UPSTREAM}/health`, (res) => {
@@ -26,13 +33,28 @@ function isUp(cb) {
 }
 
 function ensureUpstream() {
-  isUp((ok) => {
-    if (ok) return;
-    fs.mkdirSync(path.join(ROOT, 'tmp'), { recursive: true });
+  fs.mkdirSync(path.join(ROOT, 'tmp'), { recursive: true });
+  try {
+    if (fs.existsSync(PID_FILE)) {
+      const old = Number(fs.readFileSync(PID_FILE, 'utf8').trim());
+      if (Number.isFinite(old) && pidAlive(old)) return;
+    }
+  } catch {
+    /* ignore */
+  }
+
+  let lockFd;
+  try {
+    lockFd = fs.openSync(LOCK_FILE, 'wx');
+  } catch {
+    return;
+  }
+
+  try {
     const out = fs.openSync(LOG_FILE, 'a');
     const child = spawn(
       path.join(ROOT, '.venv', 'bin', 'uvicorn'),
-      ['app.main:api', '--host', '127.0.0.1', '--port', String(PORT)],
+      ['app.main:api', '--host', '127.0.0.1', '--port', String(PORT), '--workers', '1'],
       {
         cwd: path.join(ROOT, 'backend'),
         env: {
@@ -48,7 +70,14 @@ function ensureUpstream() {
     );
     fs.writeFileSync(PID_FILE, String(child.pid));
     child.unref();
-  });
+  } finally {
+    try {
+      fs.closeSync(lockFd);
+      fs.unlinkSync(LOCK_FILE);
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 function proxy(req, res) {
@@ -76,15 +105,11 @@ const server = http.createServer((req, res) => {
   isUp((ok) => {
     if (!ok) {
       ensureUpstream();
-      setTimeout(() => proxy(req, res), 800);
+      setTimeout(() => proxy(req, res), 1200);
       return;
     }
     proxy(req, res);
   });
 });
 
-if (process.env.PORT || process.env.PASSENGER_BASE_URI) {
-  server.listen();
-} else {
-  server.listen(0, '127.0.0.1');
-}
+server.listen();
