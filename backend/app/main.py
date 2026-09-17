@@ -62,12 +62,28 @@ if not PASSENGER:
 
 @app.on_event("startup")
 def on_startup():
-    Base.metadata.create_all(bind=engine)
-    db = SessionLocal()
-    try:
-        seed_if_empty(db)
-    finally:
-        db.close()
+    import fcntl
+    import time
+
+    lock_path = Path(__file__).resolve().parent.parent / "data" / "startup.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(lock_path, "a+", encoding="utf-8") as lock_file:
+        for _ in range(40):
+            try:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                time.sleep(0.25)
+        else:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+
+        Base.metadata.create_all(bind=engine)
+        db = SessionLocal()
+        try:
+            seed_if_empty(db)
+        finally:
+            db.close()
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
     def warm_cursor() -> None:
         try:
