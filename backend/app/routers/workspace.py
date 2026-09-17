@@ -10,7 +10,7 @@ router = APIRouter(tags=["workspace"])
 
 @router.get("/tasks", response_model=list[TaskOut])
 def list_tasks(db: Session = Depends(get_db)):
-    return db.query(Task).order_by(Task.due_date.asc().nullslast()).all()
+    return db.query(Task).order_by(Task.due_date.asc()).all()
 
 
 @router.post("/tasks", response_model=TaskOut)
