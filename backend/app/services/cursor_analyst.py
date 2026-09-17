@@ -11,10 +11,11 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.schemas import AiChatResponse
-from app.services.crm_context import build_crm_context, heuristic_answer
+from app.services.crm_cache import get_cached_answer, get_cached_context, store_cached_answer
+from app.services.crm_context import heuristic_answer
 
 SANDBOX = Path(__file__).resolve().parent.parent.parent / "sandbox"
-MODEL = os.environ.get("AI_CRM_MODEL", "composer-2.5").strip() or "composer-2.5"
+MODEL = os.environ.get("AI_CRM_MODEL", "auto").strip() or "auto"
 PROMPT_CAP = 1800
 
 
@@ -201,16 +202,26 @@ _POOL = CursorAnalystPool()
 
 
 def answer_with_cursor(db: Session, message: str) -> AiChatResponse:
-    context = build_crm_context(db)
+    context, context_fp, context_hit = get_cached_context(db)
+    cached = get_cached_answer(message, context_fp)
+    if cached is not None:
+        cached.insights = [
+            *[i for i in cached.insights if not i.startswith("Cursor ") and not i.startswith("Cache ")],
+            "Cache hit · reused CRM context + prior answer",
+        ][:8]
+        return cached
+
     fallback = heuristic_answer(db, message)
     prompt = build_prompt(message, context)
     try:
         text, meta = _POOL.ask(prompt)
         payload = normalize_payload(extract_json(text), fallback)
+        source = "context cache" if context_hit else "fresh snapshot"
         payload.insights = [
             *payload.insights,
-            f"Cursor {meta['model']} · {meta['duration_ms']}ms",
+            f"Live analyst · {meta['duration_ms']}ms · {source}",
         ][:8]
+        store_cached_answer(message, context_fp, payload)
         return payload
     except Exception as err:
         soft = heuristic_answer(db, message)

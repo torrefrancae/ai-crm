@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import os
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -12,32 +15,49 @@ from app.seed import seed_if_empty
 APP_ROOT = Path(__file__).resolve().parent.parent.parent
 CLIENT_DIST = APP_ROOT / "client" / "dist"
 URL_PREFIX = "/sample/ai-crm"
+PASSENGER = os.environ.get("AI_CRM_PASSENGER", "").strip() == "1"
 
-app = FastAPI(title="AI-CRM", version="0.1.0")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-api = FastAPI()
-api.include_router(contacts.router)
-api.include_router(companies.router)
-api.include_router(deals.router)
-api.include_router(leads.router)
-api.include_router(workspace.router)
-api.include_router(analytics.router)
+ALLOWED_ORIGINS = {
+    item.strip()
+    for item in os.environ.get(
+        "AI_CRM_CORS_ORIGINS",
+        "https://torrefranca.site,http://127.0.0.1:3096,http://localhost:3096",
+    ).split(",")
+    if item.strip()
+}
 
 
-@api.get("/health")
-def health():
-    return {"ok": True, "service": "ai-crm"}
+def build_api() -> FastAPI:
+    api_app = FastAPI(title="AI-CRM API", version="0.1.0")
+    api_app.include_router(contacts.router)
+    api_app.include_router(companies.router)
+    api_app.include_router(deals.router)
+    api_app.include_router(leads.router)
+    api_app.include_router(workspace.router)
+    api_app.include_router(analytics.router)
+
+    @api_app.get("/health")
+    def health():
+        from app.services.crm_cache import cache_stats
+
+        return {"ok": True, "service": "ai-crm", "cache": cache_stats()}
+
+    return api_app
 
 
-app.mount(f"{URL_PREFIX}/api", api)
+api = build_api()
+app = api if PASSENGER else FastAPI(title="AI-CRM", version="0.1.0")
+
+if not PASSENGER:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=sorted(ALLOWED_ORIGINS) or ["*"],
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["Content-Type"],
+    )
+    app.mount(f"{URL_PREFIX}/api", api)
+    app.mount("/api/ai-crm", api)
 
 
 @app.on_event("startup")
@@ -51,14 +71,20 @@ def on_startup():
 
     def warm_cursor() -> None:
         try:
+            from app.services.crm_cache import get_cached_context
             from app.services.cursor_analyst import _POOL, build_prompt, cursor_keys
 
             keys = cursor_keys()
+            db_warm = SessionLocal()
+            try:
+                get_cached_context(db_warm)
+            finally:
+                db_warm.close()
             if not keys:
                 return
             with _POOL._lock:
                 _POOL._ensure(keys[0])
-            _POOL.ask(build_prompt("ping", {"kpis": {"ok": True}}))
+            _POOL.ask(build_prompt("ping", {"kpis": {"ok": True}, "warm": True}))
         except Exception:
             pass
 
@@ -67,7 +93,7 @@ def on_startup():
     threading.Thread(target=warm_cursor, daemon=True, name="ai-crm-cursor-warm").start()
 
 
-if CLIENT_DIST.exists():
+if not PASSENGER and CLIENT_DIST.exists():
     assets = CLIENT_DIST / "assets"
     if assets.exists():
         app.mount(

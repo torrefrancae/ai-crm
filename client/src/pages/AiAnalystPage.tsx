@@ -1,7 +1,13 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { api } from "@src/lib/api";
-import type { AiChatResponse } from "@src/types/crm";
+import { api, QuotaError, TRY_MAX } from "@src/lib/api";
+import { applyQuotaFields, readLocalQuota, type QuotaState } from "@src/lib/quota";
+import {
+  describeWait,
+  estimateWaitMs,
+  formatSeconds,
+  recordWaitMs,
+} from "@src/lib/waitEstimate";
 
 type ChatItem = {
   role: "user" | "assistant";
@@ -18,34 +24,89 @@ const prompts = [
   "Who is carrying the most weighted pipeline?",
 ];
 
+function publicInsights(insights: string[] | undefined): string[] | undefined {
+  if (!insights?.length) return undefined;
+  return insights
+    .map((item) =>
+      item
+        .replace(/\bCursor\s+[A-Za-z0-9._-]+/gi, "Live analyst")
+        .replace(/\bcomposer-[A-Za-z0-9._-]+/gi, "auto")
+        .replace(/\bgpt-[A-Za-z0-9._-]+/gi, "auto")
+        .replace(/\bclaude-[A-Za-z0-9._-]+/gi, "auto")
+        .replace(/\bgemini-[A-Za-z0-9._-]+/gi, "auto"),
+    )
+    .filter(Boolean);
+}
+
 export function AiAnalystPage() {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [elapsedMs, setElapsedMs] = useState(0);
+  const [estimateMs, setEstimateMs] = useState(() => estimateWaitMs());
+  const [quota, setQuota] = useState<QuotaState>(() => readLocalQuota());
   const [log, setLog] = useState<ChatItem[]>([
     {
       role: "assistant",
-      text: "I use the Cursor SDK (composer-2.5, tools off) over a live CRM snapshot, so answers are real LLM output grounded in this workspace.",
+      text: `I analyze a live CRM snapshot through a secure auto-routed assistant. Up to ${TRY_MAX} live prompts per visitor; cached repeats stay free.`,
     },
   ]);
+  const logRef = useRef<HTMLDivElement | null>(null);
+  const startedRef = useRef(0);
+  const spent = quota.left <= 0;
+
+  useEffect(() => {
+    void api.usage().then(setQuota).catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    if (!busy) {
+      setElapsedMs(0);
+      return;
+    }
+    startedRef.current = Date.now();
+    const tick = window.setInterval(() => {
+      setElapsedMs(Date.now() - startedRef.current);
+    }, 200);
+    return () => window.clearInterval(tick);
+  }, [busy]);
+
+  useEffect(() => {
+    const node = logRef.current;
+    if (!node) return;
+    node.scrollTop = node.scrollHeight;
+  }, [log, busy, elapsedMs]);
 
   async function ask(message: string) {
     const trimmed = message.trim();
     if (!trimmed || busy) return;
+    const nextEstimate = estimateWaitMs();
+    setEstimateMs(nextEstimate);
     setBusy(true);
     setLog((prev) => [...prev, { role: "user", text: trimmed }]);
     setInput("");
+    const t0 = Date.now();
     try {
-      const res: AiChatResponse = await api.aiChat(trimmed);
+      const res = await api.aiChat(trimmed);
+      const took = Date.now() - t0;
+      if (took >= 800 && !res.cached) recordWaitMs(took);
+      setQuota(applyQuotaFields(res));
+      const suffix =
+        typeof res.left === "number"
+          ? ` (${res.left} of ${res.max ?? TRY_MAX} live prompts left${res.cached ? ", cache hit" : ""})`
+          : "";
       setLog((prev) => [
         ...prev,
         {
           role: "assistant",
-          text: res.reply,
-          insights: res.insights,
+          text: `${res.reply}${suffix}`,
+          insights: publicInsights(res.insights),
           actions: res.suggested_actions,
         },
       ]);
     } catch (err) {
+      if (err instanceof QuotaError) {
+        setQuota({ used: err.used, left: err.left, max: err.max });
+      }
       setLog((prev) => [
         ...prev,
         {
@@ -63,21 +124,53 @@ export function AiAnalystPage() {
     void ask(input);
   }
 
+  const wait = describeWait(estimateMs, elapsedMs);
+
   return (
     <div className="ai-layout">
       <div className="card">
         <div className="panel-title">
           <h3>Conversation</h3>
-          {busy ? <span className="badge accent">Thinking...</span> : null}
+          {busy ? (
+            <span className="badge accent ai-status">
+              <span className="spinner" aria-hidden />
+              Usually ~{formatSeconds(estimateMs)}
+            </span>
+          ) : (
+            <span className="badge accent">
+              {spent
+                ? `All ${quota.max} live prompts used`
+                : `${quota.left} of ${quota.max} live prompts left`}
+            </span>
+          )}
         </div>
+        <div className="quota-pips" aria-hidden>
+          {Array.from({ length: quota.max }, (_, i) => (
+            <span key={i} className={i < quota.left ? "pip on" : "pip off"} />
+          ))}
+        </div>
+        {spent ? (
+          <div className="list-row" style={{ marginBottom: 12 }}>
+            <div>
+              <strong>Prompt limit reached</strong>
+              <span>Live AI asks are paused for this visitor. Cached repeats still work if available.</span>
+            </div>
+          </div>
+        ) : null}
         <div className="chips">
           {prompts.map((p) => (
-            <button key={p} className="chip" type="button" onClick={() => void ask(p)}>
+            <button
+              key={p}
+              className="chip"
+              type="button"
+              disabled={busy}
+              onClick={() => void ask(p)}
+            >
               {p}
             </button>
           ))}
         </div>
-        <div className="chat-log">
+        <div className="chat-log" ref={logRef} aria-live="polite">
           {log.map((item, idx) => (
             <div key={`${item.role}-${idx}`} className={`bubble ${item.role}`}>
               <div>{item.text}</div>
@@ -99,26 +192,60 @@ export function AiAnalystPage() {
               ) : null}
             </div>
           ))}
+          {busy ? (
+            <div className="bubble assistant ai-pending" role="status">
+              <div className="ai-pending-row">
+                <span className="spinner lg" aria-hidden />
+                <div>
+                  <strong>{wait.headline}</strong>
+                  <div className="ai-pending-copy">{wait.detail}</div>
+                </div>
+              </div>
+              <div
+                className="ai-progress-track"
+                aria-hidden="true"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={wait.pct}
+              >
+                <div className="ai-progress-fill" style={{ width: `${wait.pct}%` }} />
+              </div>
+            </div>
+          ) : null}
         </div>
         <form className="chat-form" onSubmit={onSubmit}>
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask the analytics assistant..."
+            placeholder={
+              spent ? "Live limit reached - cached repeats may still work..." : busy ? "Waiting on analyst..." : "Ask the analytics assistant..."
+            }
+            disabled={busy}
+            maxLength={600}
           />
-          <button className="btn primary" type="submit" disabled={busy}>
-            Ask
+          <button
+            className="btn primary"
+            type="submit"
+            disabled={busy || !input.trim()}
+          >
+            {busy ? "Working..." : "Ask"}
           </button>
         </form>
       </div>
       <div className="card stack">
         <div className="panel-title">
-          <h3>Live Cursor analyst</h3>
+          <h3>Live analyst</h3>
+        </div>
+        <div className="list-row">
+          <div>
+            <strong>Secure quota</strong>
+            <span>Server-side IP limits, one inflight ask, short cooldown, daily budget</span>
+          </div>
         </div>
         <div className="list-row">
           <div>
             <strong>Speed path</strong>
-            <span>Preloaded CRM JSON + tools disabled + warm local agent pool</span>
+            <span>Cached CRM snapshot + answer reuse + auto-routed assistant</span>
           </div>
         </div>
         <div className="list-row">
@@ -137,12 +264,6 @@ export function AiAnalystPage() {
           <div>
             <strong>Account risk</strong>
             <span>Health scores under 65 with outreach prompts</span>
-          </div>
-        </div>
-        <div className="list-row">
-          <div>
-            <strong>Execution hygiene</strong>
-            <span>Overdue tasks and recent activity signals</span>
           </div>
         </div>
       </div>

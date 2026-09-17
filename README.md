@@ -10,7 +10,7 @@ Full-workspace CRM demo with a FastAPI backend and a React client. The twist is 
 
 ## Features
 
-- AI Analyst powered by Cursor SDK (`composer-2.5`, tools disabled, warm agent pool)
+- AI Analyst powered by Cursor SDK (`auto` model routing, tools disabled, warm agent pool)
 - Dashboard KPIs and charts
 - Pipeline board with drag-and-drop stage moves
 - Contacts, companies, leads
@@ -48,4 +48,4 @@ Speed path:
 - compact CRM JSON snapshot injected into the prompt
 - `tools=[]` so the agent does not explore files
 - reusable local bridge + agent across requests
-- default model `composer-2.5` (override with `AI_CRM_MODEL`)
+- default model `auto` (override with `AI_CRM_MODEL` privately; never shown in UI)

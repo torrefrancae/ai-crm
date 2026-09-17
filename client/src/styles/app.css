@@ -522,6 +522,97 @@ table.data tr:hover td {
   border-color: rgba(43, 183, 160, 0.4);
 }
 
+.chip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.quota-pips {
+  display: flex;
+  gap: 6px;
+  margin: -6px 0 14px;
+}
+
+.quota-pips .pip {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+}
+
+.quota-pips .pip.on {
+  background: var(--accent);
+  border-color: transparent;
+}
+
+.quota-pips .pip.off {
+  background: transparent;
+  opacity: 0.55;
+}
+
+.ai-pending {
+  border-style: dashed;
+}
+
+.ai-pending-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.ai-pending-copy {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.ai-pending-bar {
+  margin-top: 14px;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 1.1s linear infinite;
+}
+
+.ai-progress-track {
+  margin-top: 14px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(127, 140, 150, 0.18);
+  overflow: hidden;
+}
+
+.ai-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), #4fd1b5);
+  transition: width 220ms ease;
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgba(43, 183, 160, 0.25);
+  border-top-color: var(--accent);
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+.spinner.lg {
+  width: 22px;
+  height: 22px;
+  margin-top: 2px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .loading {
   padding: 40px;
   color: var(--muted);

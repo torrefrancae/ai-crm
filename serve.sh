@@ -77,7 +77,7 @@ elif [[ -f "${HOME}/.config/etorrefranca4-chart/env" ]]; then
   . "${HOME}/.config/etorrefranca4-chart/env"
   set +a
 fi
-export AI_CRM_MODEL="${AI_CRM_MODEL:-composer-2.5}"
+export AI_CRM_MODEL="${AI_CRM_MODEL:-auto}"
 
 if [[ ! -d "$VENV" ]]; then
   (cd "$BACKEND" && uv venv .venv) >>"$LOG_FILE" 2>&1

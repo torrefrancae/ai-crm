@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Deal
 from app.schemas import DealCreate, DealOut, DealStageUpdate
+from app.services.crm_cache import invalidate_context_cache
 
 router = APIRouter(prefix="/deals", tags=["deals"])
 
@@ -43,6 +44,7 @@ def create_deal(payload: DealCreate, db: Session = Depends(get_db)):
     d = Deal(**payload.model_dump(), updated_at=datetime.utcnow())
     db.add(d)
     db.commit()
+    invalidate_context_cache()
     db.refresh(d)
     return serialize(d)
 
@@ -61,6 +63,7 @@ def update_stage(deal_id: int, payload: DealStageUpdate, db: Session = Depends(g
         d.probability = 0
     d.updated_at = datetime.utcnow()
     db.commit()
+    invalidate_context_cache()
     db.refresh(d)
     return serialize(d)
 
@@ -74,5 +77,6 @@ def update_deal(deal_id: int, payload: DealCreate, db: Session = Depends(get_db)
         setattr(d, key, value)
     d.updated_at = datetime.utcnow()
     db.commit()
+    invalidate_context_cache()
     db.refresh(d)
     return serialize(d)

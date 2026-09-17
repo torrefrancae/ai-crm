@@ -16,6 +16,10 @@ export default defineConfig({
   server: {
     port: 5196,
     proxy: {
+      "/api/ai-crm": {
+        target: "http://127.0.0.1:3096",
+        changeOrigin: true,
+      },
       "/sample/ai-crm/api": {
         target: "http://127.0.0.1:3096",
         changeOrigin: true,

@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Activity, Message, Task
 from app.schemas import ActivityOut, MessageOut, TaskCreate, TaskOut
+from app.services.crm_cache import invalidate_context_cache
 
 router = APIRouter(tags=["workspace"])
 
@@ -18,6 +19,7 @@ def create_task(payload: TaskCreate, db: Session = Depends(get_db)):
     task = Task(**payload.model_dump())
     db.add(task)
     db.commit()
+    invalidate_context_cache()
     db.refresh(task)
     return task
 
@@ -30,6 +32,7 @@ def update_task(task_id: int, payload: TaskCreate, db: Session = Depends(get_db)
     for key, value in payload.model_dump().items():
         setattr(task, key, value)
     db.commit()
+    invalidate_context_cache()
     db.refresh(task)
     return task
 
