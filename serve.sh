@@ -66,6 +66,19 @@ fi
 stop_old
 : >"$LOG_FILE"
 
+if [[ -n "${AI_CRM_ENV_FILE:-}" && -f "${AI_CRM_ENV_FILE}" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "${AI_CRM_ENV_FILE}"
+  set +a
+elif [[ -f "${HOME}/.config/etorrefranca4-chart/env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "${HOME}/.config/etorrefranca4-chart/env"
+  set +a
+fi
+export AI_CRM_MODEL="${AI_CRM_MODEL:-composer-2.5}"
+
 if [[ ! -d "$VENV" ]]; then
   (cd "$BACKEND" && uv venv .venv) >>"$LOG_FILE" 2>&1
 fi
@@ -79,7 +92,9 @@ fi
 
 (cd "$ROOT/client" && npm run build) >>"$LOG_FILE" 2>&1
 
-nohup sh -c "cd \"$BACKEND\" && \"$VENV/bin/uvicorn\" app.main:app --host 127.0.0.1 --port $PORT 2>&1 | tr -d '\\000' | stdbuf -oL strings -n 1 >> \"$LOG_FILE\"" >/dev/null 2>&1 &
+mkdir -p "$BACKEND/sandbox"
+
+nohup sh -c "cd \"$BACKEND\" && AI_CRM_MODEL=\"${AI_CRM_MODEL}\" \"$VENV/bin/uvicorn\" app.main:app --host 127.0.0.1 --port $PORT 2>&1 | tr -d '\\000' | stdbuf -oL strings -n 1 >> \"$LOG_FILE\"" >/dev/null 2>&1 &
 echo $! >"$PID_FILE"
 
 sleep 5

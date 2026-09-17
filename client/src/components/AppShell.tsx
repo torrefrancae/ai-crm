@@ -5,13 +5,16 @@ import {
   ChartColumn,
   Inbox,
   LayoutDashboard,
+  Moon,
   Sparkles,
+  Sun,
   Target,
   UserRound,
   CheckSquare,
   Settings,
   ContactRound,
 } from "lucide-react";
+import { useTheme } from "@src/hooks/useTheme";
 
 const links = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -77,6 +80,7 @@ const titles: Record<string, { title: string; blurb: string }> = {
 export function AppShell() {
   const { pathname } = useLocation();
   const meta = titles[pathname] ?? titles["/"];
+  const { theme, toggleTheme } = useTheme();
 
   return (
     <div className="app-shell">
@@ -113,6 +117,17 @@ export function AppShell() {
           <div>
             <h2>{meta.title}</h2>
             <p>{meta.blurb}</p>
+          </div>
+          <div className="theme-toggle">
+            <button
+              type="button"
+              className="btn"
+              onClick={toggleTheme}
+              aria-label={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}
+            >
+              {theme === "light" ? <Moon size={16} /> : <Sun size={16} />}
+              {theme === "light" ? "Dark" : "Light"}
+            </button>
           </div>
         </header>
         <Outlet />

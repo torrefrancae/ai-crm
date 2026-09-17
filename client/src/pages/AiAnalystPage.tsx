@@ -24,7 +24,7 @@ export function AiAnalystPage() {
   const [log, setLog] = useState<ChatItem[]>([
     {
       role: "assistant",
-      text: "I read live CRM metrics from this workspace. Ask about pipeline, leads, account risk, tasks, or team performance.",
+      text: "I use the Cursor SDK (composer-2.5, tools off) over a live CRM snapshot, so answers are real LLM output grounded in this workspace.",
     },
   ]);
 
@@ -113,7 +113,13 @@ export function AiAnalystPage() {
       </div>
       <div className="card stack">
         <div className="panel-title">
-          <h3>What this AI covers</h3>
+          <h3>Live Cursor analyst</h3>
+        </div>
+        <div className="list-row">
+          <div>
+            <strong>Speed path</strong>
+            <span>Preloaded CRM JSON + tools disabled + warm local agent pool</span>
+          </div>
         </div>
         <div className="list-row">
           <div>

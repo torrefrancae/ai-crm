@@ -1,4 +1,8 @@
+import { useTheme } from "@src/hooks/useTheme";
+
 export function SettingsPage() {
+  const { theme, setTheme } = useTheme();
+
   return (
     <div className="panel-grid">
       <div className="card stack">
@@ -32,7 +36,29 @@ export function SettingsPage() {
       </div>
       <div className="card stack">
         <div className="panel-title">
-          <h3>Demo defaults</h3>
+          <h3>Appearance</h3>
+        </div>
+        <div className="list-row">
+          <div>
+            <strong>Theme</strong>
+            <span>Light is the default; choice is saved in this browser</span>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              type="button"
+              className={`btn ${theme === "light" ? "primary" : ""}`}
+              onClick={() => setTheme("light")}
+            >
+              Light
+            </button>
+            <button
+              type="button"
+              className={`btn ${theme === "dark" ? "primary" : ""}`}
+              onClick={() => setTheme("dark")}
+            >
+              Dark
+            </button>
+          </div>
         </div>
         <div className="list-row">
           <div>

@@ -12,6 +12,7 @@ import {
 } from "recharts";
 import { api, money } from "@src/lib/api";
 import { LoadingState } from "@src/components/LoadingState";
+import { useChartTheme } from "@src/hooks/useChartTheme";
 
 type ReportPayload = {
   kpis: {
@@ -30,6 +31,7 @@ type ReportPayload = {
 
 export function ReportsPage() {
   const [data, setData] = useState<ReportPayload | null>(null);
+  const chart = useChartTheme();
 
   useEffect(() => {
     api.reports().then((raw) => setData(raw as ReportPayload));
@@ -66,17 +68,11 @@ export function ReportsPage() {
           <div style={{ width: "100%", height: 280 }}>
             <ResponsiveContainer>
               <BarChart data={data.top_owners}>
-                <CartesianGrid stroke="rgba(214,226,236,0.08)" vertical={false} />
-                <XAxis dataKey="owner" stroke="#93a4b3" fontSize={11} />
-                <YAxis stroke="#93a4b3" fontSize={12} tickFormatter={(v) => `$${v / 1000}k`} />
-                <Tooltip
-                  contentStyle={{
-                    background: "#18232e",
-                    border: "1px solid rgba(214,226,236,0.12)",
-                    borderRadius: 12,
-                  }}
-                />
-                <Bar dataKey="weighted" fill="#2bb7a0" radius={[8, 8, 0, 0]} />
+                <CartesianGrid stroke={chart.grid} vertical={false} />
+                <XAxis dataKey="owner" stroke={chart.muted} fontSize={11} />
+                <YAxis stroke={chart.muted} fontSize={12} tickFormatter={(v) => `$${v / 1000}k`} />
+                <Tooltip contentStyle={chart.tooltip} />
+                <Bar dataKey="weighted" fill={chart.accent} radius={[8, 8, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -88,17 +84,17 @@ export function ReportsPage() {
           <div style={{ width: "100%", height: 280 }}>
             <ResponsiveContainer>
               <LineChart data={data.revenue_trend}>
-                <CartesianGrid stroke="rgba(214,226,236,0.08)" vertical={false} />
-                <XAxis dataKey="month" stroke="#93a4b3" fontSize={12} />
-                <YAxis stroke="#93a4b3" fontSize={12} tickFormatter={(v) => `$${v / 1000}k`} />
-                <Tooltip
-                  contentStyle={{
-                    background: "#18232e",
-                    border: "1px solid rgba(214,226,236,0.12)",
-                    borderRadius: 12,
-                  }}
+                <CartesianGrid stroke={chart.grid} vertical={false} />
+                <XAxis dataKey="month" stroke={chart.muted} fontSize={12} />
+                <YAxis stroke={chart.muted} fontSize={12} tickFormatter={(v) => `$${v / 1000}k`} />
+                <Tooltip contentStyle={chart.tooltip} />
+                <Line
+                  type="monotone"
+                  dataKey="revenue"
+                  stroke={chart.accent2}
+                  strokeWidth={3}
+                  dot={false}
                 />
-                <Line type="monotone" dataKey="revenue" stroke="#f0b429" strokeWidth={3} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>

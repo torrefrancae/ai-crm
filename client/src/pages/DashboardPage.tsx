@@ -13,10 +13,12 @@ import {
 import { api, money } from "@src/lib/api";
 import type { Dashboard } from "@src/types/crm";
 import { LoadingState } from "@src/components/LoadingState";
+import { useChartTheme } from "@src/hooks/useChartTheme";
 
 export function DashboardPage() {
   const [data, setData] = useState<Dashboard | null>(null);
   const [error, setError] = useState("");
+  const chart = useChartTheme();
 
   useEffect(() => {
     api
@@ -64,21 +66,15 @@ export function DashboardPage() {
               <AreaChart data={data.revenue_trend}>
                 <defs>
                   <linearGradient id="rev" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#2bb7a0" stopOpacity={0.55} />
-                    <stop offset="100%" stopColor="#2bb7a0" stopOpacity={0} />
+                    <stop offset="0%" stopColor={chart.accent} stopOpacity={0.55} />
+                    <stop offset="100%" stopColor={chart.accent} stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid stroke="rgba(214,226,236,0.08)" vertical={false} />
-                <XAxis dataKey="month" stroke="#93a4b3" fontSize={12} />
-                <YAxis stroke="#93a4b3" fontSize={12} tickFormatter={(v) => `$${v / 1000}k`} />
-                <Tooltip
-                  contentStyle={{
-                    background: "#18232e",
-                    border: "1px solid rgba(214,226,236,0.12)",
-                    borderRadius: 12,
-                  }}
-                />
-                <Area type="monotone" dataKey="revenue" stroke="#2bb7a0" fill="url(#rev)" />
+                <CartesianGrid stroke={chart.grid} vertical={false} />
+                <XAxis dataKey="month" stroke={chart.muted} fontSize={12} />
+                <YAxis stroke={chart.muted} fontSize={12} tickFormatter={(v) => `$${v / 1000}k`} />
+                <Tooltip contentStyle={chart.tooltip} />
+                <Area type="monotone" dataKey="revenue" stroke={chart.accent} fill="url(#rev)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -91,17 +87,11 @@ export function DashboardPage() {
           <div style={{ width: "100%", height: 260 }}>
             <ResponsiveContainer>
               <BarChart data={data.stage_breakdown}>
-                <CartesianGrid stroke="rgba(214,226,236,0.08)" vertical={false} />
-                <XAxis dataKey="stage" stroke="#93a4b3" fontSize={11} />
-                <YAxis stroke="#93a4b3" fontSize={12} tickFormatter={(v) => `$${v / 1000}k`} />
-                <Tooltip
-                  contentStyle={{
-                    background: "#18232e",
-                    border: "1px solid rgba(214,226,236,0.12)",
-                    borderRadius: 12,
-                  }}
-                />
-                <Bar dataKey="value" fill="#f0b429" radius={[8, 8, 0, 0]} />
+                <CartesianGrid stroke={chart.grid} vertical={false} />
+                <XAxis dataKey="stage" stroke={chart.muted} fontSize={11} />
+                <YAxis stroke={chart.muted} fontSize={12} tickFormatter={(v) => `$${v / 1000}k`} />
+                <Tooltip contentStyle={chart.tooltip} />
+                <Bar dataKey="value" fill={chart.accent2} radius={[8, 8, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

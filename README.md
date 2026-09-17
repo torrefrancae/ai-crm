@@ -10,6 +10,7 @@ Full-workspace CRM demo with a FastAPI backend and a React client. The twist is 
 
 ## Features
 
+- AI Analyst powered by Cursor SDK (`composer-2.5`, tools disabled, warm agent pool)
 - Dashboard KPIs and charts
 - Pipeline board with drag-and-drop stage moves
 - Contacts, companies, leads
@@ -37,3 +38,14 @@ Stop with:
 Health check: `GET /sample/ai-crm/api/health`
 
 OpenAPI docs when the API app is reached through the mounted path, or run uvicorn directly against `app.main:api` during backend-only work.
+
+
+## Cursor API
+
+Local `serve.sh` loads keys from `AI_CRM_ENV_FILE` or `~/.config/etorrefranca4-chart/env` (`API_KEY*` / `CURSOR_API_KEY`).
+
+Speed path:
+- compact CRM JSON snapshot injected into the prompt
+- `tools=[]` so the agent does not explore files
+- reusable local bridge + agent across requests
+- default model `composer-2.5` (override with `AI_CRM_MODEL`)

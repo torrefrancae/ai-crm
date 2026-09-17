@@ -6,6 +6,7 @@ venv/
 *.sqlite
 *.sqlite3
 backend/data/*.db
+backend/sandbox/
 node_modules/
 client/dist/
 client/node_modules/

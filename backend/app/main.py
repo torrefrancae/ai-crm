@@ -49,6 +49,23 @@ def on_startup():
     finally:
         db.close()
 
+    def warm_cursor() -> None:
+        try:
+            from app.services.cursor_analyst import _POOL, build_prompt, cursor_keys
+
+            keys = cursor_keys()
+            if not keys:
+                return
+            with _POOL._lock:
+                _POOL._ensure(keys[0])
+            _POOL.ask(build_prompt("ping", {"kpis": {"ok": True}}))
+        except Exception:
+            pass
+
+    import threading
+
+    threading.Thread(target=warm_cursor, daemon=True, name="ai-crm-cursor-warm").start()
+
 
 if CLIENT_DIST.exists():
     assets = CLIENT_DIST / "assets"
