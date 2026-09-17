@@ -6,10 +6,12 @@ const fs = require('fs');
 
 const ROOT = __dirname;
 const PORT = Number(process.env.AI_CRM_UPSTREAM_PORT || 13096);
+const PREFIX = '/api/ai-crm';
 const UPSTREAM = `http://127.0.0.1:${PORT}`;
 const PID_FILE = path.join(ROOT, 'tmp', 'uvicorn.pid');
 const LOG_FILE = path.join(ROOT, 'tmp', 'uvicorn.log');
 const LOCK_FILE = path.join(ROOT, 'tmp', 'uvicorn.lock');
+let lastSpawnAt = 0;
 
 function pidAlive(pid) {
   try {
@@ -18,6 +20,14 @@ function pidAlive(pid) {
   } catch {
     return false;
   }
+}
+
+function rewritePath(urlPath) {
+  if (urlPath === PREFIX || urlPath.startsWith(`${PREFIX}/`) || urlPath.startsWith(`${PREFIX}?`)) {
+    const rest = urlPath.slice(PREFIX.length);
+    return rest.startsWith('/') || rest.startsWith('?') || rest === '' ? rest || '/' : `/${rest}`;
+  }
+  return urlPath;
 }
 
 function isUp(cb) {
@@ -33,6 +43,8 @@ function isUp(cb) {
 }
 
 function ensureUpstream() {
+  const now = Date.now();
+  if (now - lastSpawnAt < 8000) return;
   fs.mkdirSync(path.join(ROOT, 'tmp'), { recursive: true });
   try {
     if (fs.existsSync(PID_FILE)) {
@@ -50,6 +62,7 @@ function ensureUpstream() {
     return;
   }
 
+  lastSpawnAt = now;
   try {
     const out = fs.openSync(LOG_FILE, 'a');
     const child = spawn(
@@ -84,7 +97,7 @@ function proxy(req, res) {
   const opts = {
     hostname: '127.0.0.1',
     port: PORT,
-    path: req.url,
+    path: rewritePath(req.url || '/'),
     method: req.method,
     headers: { ...req.headers, host: `127.0.0.1:${PORT}` },
   };
