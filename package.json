@@ -1,0 +1,9 @@
+{
+  "name": "ai-crm-passenger",
+  "private": true,
+  "version": "0.1.0",
+  "main": "app.js",
+  "engines": {
+    "node": ">=18"
+  }
+}
