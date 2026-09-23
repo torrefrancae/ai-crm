@@ -44,15 +44,21 @@ export function AiAnalystPage() {
   const [elapsedMs, setElapsedMs] = useState(0);
   const [estimateMs, setEstimateMs] = useState(() => estimateWaitMs());
   const [quota, setQuota] = useState<QuotaState>(() => readLocalQuota());
-  const [log, setLog] = useState<ChatItem[]>([
-    {
-      role: "assistant",
-      text: `I analyze a live CRM snapshot through a secure auto-routed assistant. Up to ${TRY_MAX} live prompts per visitor; cached repeats stay free.`,
-    },
-  ]);
+  const [log, setLog] = useState<ChatItem[]>(() => {
+    const start = readLocalQuota();
+    return [
+      {
+        role: "assistant",
+        text: start.limitsEnabled
+          ? `I analyze a live CRM snapshot through a secure auto-routed assistant. Up to ${TRY_MAX} live prompts per visitor; cached repeats stay free.`
+          : "I analyze a live CRM snapshot through a secure auto-routed assistant. Local limits are off, so live prompts are unlimited.",
+      },
+    ];
+  });
   const logRef = useRef<HTMLDivElement | null>(null);
   const startedRef = useRef(0);
-  const spent = quota.left <= 0;
+  const spent = quota.limitsEnabled && quota.left <= 0;
+  const unlimited = !quota.limitsEnabled;
 
   useEffect(() => {
     void api.usage().then(setQuota).catch(() => undefined);
@@ -91,9 +97,11 @@ export function AiAnalystPage() {
       if (took >= 800 && !res.cached) recordWaitMs(took);
       setQuota(applyQuotaFields(res));
       const suffix =
-        typeof res.left === "number"
-          ? ` (${res.left} of ${res.max ?? TRY_MAX} live prompts left${res.cached ? ", cache hit" : ""})`
-          : "";
+        unlimited || typeof res.left !== "number"
+          ? res.cached
+            ? " (cache hit)"
+            : ""
+          : ` (${res.left} of ${res.max ?? TRY_MAX} live prompts left${res.cached ? ", cache hit" : ""})`;
       setLog((prev) => [
         ...prev,
         {
@@ -105,7 +113,12 @@ export function AiAnalystPage() {
       ]);
     } catch (err) {
       if (err instanceof QuotaError) {
-        setQuota({ used: err.used, left: err.left, max: err.max });
+        setQuota({
+          used: err.used,
+          left: err.left,
+          max: err.max,
+          limitsEnabled: err.limitsEnabled,
+        });
       }
       setLog((prev) => [
         ...prev,
@@ -138,17 +151,21 @@ export function AiAnalystPage() {
             </span>
           ) : (
             <span className="badge accent">
-              {spent
-                ? `All ${quota.max} live prompts used`
-                : `${quota.left} of ${quota.max} live prompts left`}
+              {unlimited
+                ? "Unlimited (local)"
+                : spent
+                  ? `All ${quota.max} live prompts used`
+                  : `${quota.left} of ${quota.max} live prompts left`}
             </span>
           )}
         </div>
-        <div className="quota-pips" aria-hidden>
-          {Array.from({ length: quota.max }, (_, i) => (
-            <span key={i} className={i < quota.left ? "pip on" : "pip off"} />
-          ))}
-        </div>
+        {unlimited ? null : (
+          <div className="quota-pips" aria-hidden>
+            {Array.from({ length: Math.min(quota.max, 24) }, (_, i) => (
+              <span key={i} className={i < quota.left ? "pip on" : "pip off"} />
+            ))}
+          </div>
+        )}
         {spent ? (
           <div className="list-row" style={{ marginBottom: 12 }}>
             <div>
@@ -239,7 +256,11 @@ export function AiAnalystPage() {
         <div className="list-row">
           <div>
             <strong>Secure quota</strong>
-            <span>Server-side IP limits, one inflight ask, short cooldown, daily budget</span>
+            <span>
+              {unlimited
+                ? "Prompt limits disabled on this PC only (AI_CRM_LOCAL_DEV=1 + AI_CRM_LIMITS_ENABLED=0). Production keeps limits on."
+                : "Server-side IP limits, one inflight ask, short cooldown, daily budget"}
+            </span>
           </div>
         </div>
         <div className="list-row">

@@ -1,4 +1,5 @@
 import { useTheme } from "@src/hooks/useTheme";
+import { apiBase, sampleBase } from "@src/lib/paths";
 
 export function SettingsPage() {
   const { theme, setTheme } = useTheme();
@@ -29,8 +30,14 @@ export function SettingsPage() {
         </div>
         <div className="list-row">
           <div>
-            <strong>Base path</strong>
-            <span>/sample/ai-crm/</span>
+            <strong>Sample base</strong>
+            <span>{sampleBase()}</span>
+          </div>
+        </div>
+        <div className="list-row">
+          <div>
+            <strong>API base</strong>
+            <span>{apiBase()}</span>
           </div>
         </div>
       </div>

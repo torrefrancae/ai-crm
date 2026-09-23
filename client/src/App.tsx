@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "@src/components/AppShell";
+import { sampleBasename } from "@src/lib/paths";
 import { DashboardPage } from "@src/pages/DashboardPage";
 import { PipelinePage } from "@src/pages/PipelinePage";
 import { ContactsPage } from "@src/pages/ContactsPage";
@@ -14,7 +15,7 @@ import { SettingsPage } from "@src/pages/SettingsPage";
 
 export default function App() {
   return (
-    <BrowserRouter basename="/sample/ai-crm">
+    <BrowserRouter basename={sampleBasename()}>
       <Routes>
         <Route element={<AppShell />}>
           <Route index element={<DashboardPage />} />

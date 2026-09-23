@@ -6,6 +6,12 @@ PORT="${PORT:-3096}"
 MODE=""
 cd "$ROOT"
 
+SAMPLE_BASE="${AI_CRM_SAMPLE_BASE:-/sample/ai-crm/}"
+SAMPLE_BASE="${SAMPLE_BASE%/}"
+API_BASE="${AI_CRM_API_BASE:-/api/ai-crm}"
+API_BASE="${API_BASE%/}"
+HEALTH_URL="http://127.0.0.1:${PORT}${API_BASE}/health"
+
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --headless) MODE="headless" ;;
@@ -36,7 +42,8 @@ BACKEND="$ROOT/backend"
 VENV="$BACKEND/.venv"
 
 is_up() {
-  curl -fsS -o /dev/null --max-time 2 "http://127.0.0.1:${PORT}/sample/ai-crm/api/health" >/dev/null 2>&1
+  curl -fsS -o /dev/null --max-time 2 "${HEALTH_URL}" >/dev/null 2>&1 || \
+    curl -fsS -o /dev/null --max-time 2 "http://127.0.0.1:${PORT}${SAMPLE_BASE}/api/health" >/dev/null 2>&1
 }
 
 stop_old() {
@@ -66,6 +73,19 @@ fi
 stop_old
 : >"$LOG_FILE"
 
+if [[ -f "$ROOT/.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "$ROOT/.env"
+  set +a
+fi
+if [[ -f "$ROOT/.env.local" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "$ROOT/.env.local"
+  set +a
+fi
+
 if [[ -n "${AI_CRM_ENV_FILE:-}" && -f "${AI_CRM_ENV_FILE}" ]]; then
   set -a
   # shellcheck disable=SC1091
@@ -78,6 +98,11 @@ elif [[ -f "${HOME}/.config/etorrefranca4-chart/env" ]]; then
   set +a
 fi
 export AI_CRM_MODEL="${AI_CRM_MODEL:-auto}"
+export AI_CRM_LOCAL_DEV="${AI_CRM_LOCAL_DEV:-1}"
+export AI_CRM_LIMITS_ENABLED="${AI_CRM_LIMITS_ENABLED:-1}"
+export AI_CRM_TRY_MAX="${AI_CRM_TRY_MAX:-5}"
+export AI_CRM_DAILY_MAX="${AI_CRM_DAILY_MAX:-48}"
+export AI_CRM_GAP_MS="${AI_CRM_GAP_MS:-1500}"
 
 if [[ ! -d "$VENV" ]]; then
   (cd "$BACKEND" && uv venv .venv) >>"$LOG_FILE" 2>&1
@@ -94,12 +119,24 @@ fi
 
 mkdir -p "$BACKEND/sandbox"
 
-nohup sh -c "cd \"$BACKEND\" && AI_CRM_MODEL=\"${AI_CRM_MODEL}\" \"$VENV/bin/uvicorn\" app.main:app --host 127.0.0.1 --port $PORT 2>&1 | tr -d '\\000' | stdbuf -oL strings -n 1 >> \"$LOG_FILE\"" >/dev/null 2>&1 &
+nohup sh -c "cd \"$BACKEND\" && \
+  AI_CRM_MODEL=\"${AI_CRM_MODEL}\" \
+  AI_CRM_SAMPLE_BASE=\"${SAMPLE_BASE}/\" \
+  AI_CRM_API_BASE=\"${API_BASE}\" \
+  AI_CRM_LOCAL_DEV=\"${AI_CRM_LOCAL_DEV}\" \
+  AI_CRM_LIMITS_ENABLED=\"${AI_CRM_LIMITS_ENABLED}\" \
+  AI_CRM_DISABLE_LIMITS=\"${AI_CRM_DISABLE_LIMITS:-}\" \
+  AI_CRM_TRY_MAX=\"${AI_CRM_TRY_MAX}\" \
+  AI_CRM_DAILY_MAX=\"${AI_CRM_DAILY_MAX}\" \
+  AI_CRM_GAP_MS=\"${AI_CRM_GAP_MS}\" \
+  AI_CRM_ENV_FILE=\"${AI_CRM_ENV_FILE:-}\" \
+  \"$VENV/bin/uvicorn\" app.main:app --host 127.0.0.1 --port $PORT 2>&1 | tr -d '\\000' | stdbuf -oL strings -n 1 >> \"$LOG_FILE\"" >/dev/null 2>&1 &
 echo $! >"$PID_FILE"
 
 sleep 5
 if is_up; then
-  echo "ai-crm ready on http://127.0.0.1:${PORT}/sample/ai-crm/"
+  echo "ai-crm ready on http://127.0.0.1:${PORT}${SAMPLE_BASE}/"
+  echo "api health http://127.0.0.1:${PORT}${API_BASE}/health"
 else
   echo "ai-crm failed to start; see debug.log" >&2
   tail -n 40 "$LOG_FILE" >&2 || true

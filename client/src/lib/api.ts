@@ -1,13 +1,13 @@
 import { applyQuotaFields, readLocalQuota, type QuotaState, TRY_MAX } from "@src/lib/quota";
+import { apiBase } from "@src/lib/paths";
 
-export function apiBase(): string {
-  return "/api/ai-crm";
-}
+export { apiBase };
 
 export class QuotaError extends Error {
   used: number;
   left: number;
   max: number;
+  limitsEnabled: boolean;
 
   constructor(message: string, quota: QuotaState) {
     super(message);
@@ -15,6 +15,7 @@ export class QuotaError extends Error {
     this.used = quota.used;
     this.left = quota.left;
     this.max = quota.max;
+    this.limitsEnabled = quota.limitsEnabled;
   }
 }
 
@@ -65,7 +66,12 @@ export const api = {
   health: () => request<{ ok: boolean }>("/health"),
   usage: async (): Promise<QuotaState> => {
     try {
-      const data = await request<{ used?: number; left?: number; max?: number }>("/usage");
+      const data = await request<{
+        used?: number;
+        left?: number;
+        max?: number;
+        limitsEnabled?: boolean;
+      }>("/usage");
       return applyQuotaFields(data);
     } catch {
       return readLocalQuota();

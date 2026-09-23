@@ -10,10 +10,15 @@ from typing import Any
 
 from fastapi import Request
 
+from app.env_bootstrap import load_local_env
+
+load_local_env()
+
 TRY_MAX = int(os.environ.get("AI_CRM_TRY_MAX", "5") or "5")
 DAY_MAX = int(os.environ.get("AI_CRM_DAILY_MAX", "48") or "48")
+GAP_MS = int(os.environ.get("AI_CRM_GAP_MS", "1500") or "1500")
 WINDOW_MS = 24 * 60 * 60 * 1000
-GAP_MS = 1500
+UNLIMITED_MAX = 9999
 STORE = Path(
     os.environ.get(
         "AI_CRM_LIMIT_FILE",
@@ -24,6 +29,29 @@ STORE = Path(
 _lock = threading.RLock()
 _inflight: set[str] = set()
 _mem: dict[str, Any] = {"day": "", "global": 0, "ips": {}}
+
+
+def _flag_on(name: str) -> bool:
+    return (os.environ.get(name) or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _flag_off(name: str, default: str = "1") -> bool:
+    return (os.environ.get(name, default) or default).strip().lower() in {"0", "false", "no", "off"}
+
+
+def limits_enabled() -> bool:
+    """Limits stay on in production (Passenger). Disable only on local PC with AI_CRM_LOCAL_DEV=1."""
+    if _flag_on("AI_CRM_PASSENGER"):
+        return True
+    if not _flag_on("AI_CRM_LOCAL_DEV"):
+        return True
+    if _flag_on("AI_CRM_DISABLE_LIMITS"):
+        return False
+    if _flag_off("AI_CRM_LIMITS_ENABLED", "1"):
+        return False
+    if TRY_MAX <= 0:
+        return False
+    return True
 
 
 def _utc_day() -> str:
@@ -102,7 +130,16 @@ def client_ip(request: Request) -> str:
     return remote
 
 
-def usage_for(ip: str) -> dict[str, int]:
+def usage_for(ip: str) -> dict[str, Any]:
+    if not limits_enabled():
+        return {
+            "used": 0,
+            "left": UNLIMITED_MAX,
+            "max": UNLIMITED_MAX,
+            "resetAt": 0,
+            "dailyLeft": UNLIMITED_MAX,
+            "limitsEnabled": False,
+        }
     with _lock:
         hit = _row(ip)
         used = max(0, min(TRY_MAX, int(hit.get("used") or 0)))
@@ -112,10 +149,13 @@ def usage_for(ip: str) -> dict[str, int]:
             "max": TRY_MAX,
             "resetAt": int(hit.get("resetAt") or 0),
             "dailyLeft": max(0, DAY_MAX - int(_mem.get("global") or 0)),
+            "limitsEnabled": True,
         }
 
 
 def begin_flight(ip: str) -> bool:
+    if not limits_enabled():
+        return True
     with _lock:
         if ip in _inflight:
             return False
@@ -124,11 +164,21 @@ def begin_flight(ip: str) -> bool:
 
 
 def end_flight(ip: str) -> None:
+    if not limits_enabled():
+        return
     with _lock:
         _inflight.discard(ip)
 
 
 def peek_try(ip: str) -> dict[str, Any]:
+    if not limits_enabled():
+        return {
+            "ok": True,
+            "reason": "",
+            "used": 0,
+            "left": UNLIMITED_MAX,
+            "max": UNLIMITED_MAX,
+        }
     with _lock:
         hit = _row(ip)
         used = int(hit.get("used") or 0)
@@ -152,6 +202,14 @@ def peek_try(ip: str) -> dict[str, Any]:
 
 
 def take_try(ip: str) -> dict[str, Any]:
+    if not limits_enabled():
+        return {
+            "ok": True,
+            "reason": "",
+            "used": 0,
+            "left": UNLIMITED_MAX,
+            "max": UNLIMITED_MAX,
+        }
     with _lock:
         hit = _row(ip)
         now = int(datetime.now(timezone.utc).timestamp() * 1000)

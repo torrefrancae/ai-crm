@@ -19,6 +19,35 @@ Full-workspace CRM demo with a FastAPI backend and a React client. The twist is 
 - AI Analyst chat grounded in CRM metrics
 - Settings overview
 
+## Paths (mono sample on torrefranca.site)
+
+| Role | Default | Env |
+|------|---------|-----|
+| Sample SPA | `/sample/ai-crm/` | `AI_CRM_SAMPLE_BASE` / `VITE_BASE` |
+| Main-site API | `/api/ai-crm` | `AI_CRM_API_BASE` / `VITE_API_BASE` |
+
+Copy `.env.example` to a gitignored `.env` for local overrides only. Do not deploy `.env` to Z.com.
+
+## Prompt limits
+
+Limits are **always on** under Passenger / production (`AI_CRM_PASSENGER=1`). Deployed API forces `AI_CRM_LIMITS_ENABLED=1` and ignores local disable flags.
+
+| Env | Default | Meaning |
+|-----|---------|---------|
+| `AI_CRM_LOCAL_DEV` | unset | Must be `1` on this PC before disable is allowed |
+| `AI_CRM_LIMITS_ENABLED` | `1` | Set `0` only with `AI_CRM_LOCAL_DEV=1` on this PC |
+| `AI_CRM_DISABLE_LIMITS` | unset | Alternate local off switch (also requires `AI_CRM_LOCAL_DEV=1`) |
+| `AI_CRM_TRY_MAX` | `5` | Live prompts per visitor window |
+| `AI_CRM_DAILY_MAX` | `48` | Global daily live-prompt budget |
+| `AI_CRM_GAP_MS` | `1500` | Cooldown between live asks |
+
+Local `.env` on this PC only:
+
+```bash
+AI_CRM_LOCAL_DEV=1
+AI_CRM_LIMITS_ENABLED=0
+```
+
 ## Local run
 
 ```bash
@@ -26,6 +55,8 @@ Full-workspace CRM demo with a FastAPI backend and a React client. The twist is 
 ```
 
 Open `http://127.0.0.1:3096/sample/ai-crm/`
+
+API health: `http://127.0.0.1:3096/api/ai-crm/health`
 
 Stop with:
 
@@ -35,9 +66,8 @@ Stop with:
 
 ## API
 
-Health check: `GET /sample/ai-crm/api/health`
-
-OpenAPI docs when the API app is reached through the mounted path, or run uvicorn directly against `app.main:api` during backend-only work.
+- Local unified: `GET /api/ai-crm/health` and `GET /sample/ai-crm/api/health`
+- Production: `GET https://torrefranca.site/api/ai-crm/health`
 
 
 ## Cursor API

@@ -3,6 +3,10 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from app.env_bootstrap import load_local_env
+
+load_local_env()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -14,7 +18,26 @@ from app.seed import seed_if_empty
 
 APP_ROOT = Path(__file__).resolve().parent.parent.parent
 CLIENT_DIST = APP_ROOT / "client" / "dist"
-URL_PREFIX = "/sample/ai-crm"
+
+
+def _normalize_base(value: str, *, trailing_slash: bool) -> str:
+    text = (value or "").strip() or "/"
+    if not text.startswith("/"):
+        text = f"/{text}"
+    if trailing_slash:
+        return text if text.endswith("/") else f"{text}/"
+    return text.rstrip("/") or "/"
+
+
+SAMPLE_BASE = _normalize_base(
+    os.environ.get("AI_CRM_SAMPLE_BASE", "/sample/ai-crm/"),
+    trailing_slash=True,
+)
+SAMPLE_PREFIX = SAMPLE_BASE.rstrip("/") or "/sample/ai-crm"
+API_BASE = _normalize_base(
+    os.environ.get("AI_CRM_API_BASE", "/api/ai-crm"),
+    trailing_slash=False,
+)
 PASSENGER = os.environ.get("AI_CRM_PASSENGER", "").strip() == "1"
 
 ALLOWED_ORIGINS = {
@@ -56,8 +79,8 @@ if not PASSENGER:
         allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["Content-Type"],
     )
-    app.mount(f"{URL_PREFIX}/api", api)
-    app.mount("/api/ai-crm", api)
+    app.mount(f"{SAMPLE_PREFIX}/api", api)
+    app.mount(API_BASE, api)
 
 
 @app.on_event("startup")
@@ -113,14 +136,14 @@ if not PASSENGER and CLIENT_DIST.exists():
     assets = CLIENT_DIST / "assets"
     if assets.exists():
         app.mount(
-            f"{URL_PREFIX}/assets",
+            f"{SAMPLE_PREFIX}/assets",
             StaticFiles(directory=assets),
             name="assets",
         )
 
-    @app.get(URL_PREFIX)
-    @app.get(f"{URL_PREFIX}/")
-    @app.get(f"{URL_PREFIX}/{{full_path:path}}")
+    @app.get(SAMPLE_PREFIX)
+    @app.get(f"{SAMPLE_PREFIX}/")
+    @app.get(f"{SAMPLE_PREFIX}/{{full_path:path}}")
     def spa(full_path: str = ""):
         index = CLIENT_DIST / "index.html"
         candidate = CLIENT_DIST / full_path

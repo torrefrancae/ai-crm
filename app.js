@@ -6,7 +6,7 @@ const fs = require('fs');
 
 const ROOT = __dirname;
 const PORT = Number(process.env.AI_CRM_UPSTREAM_PORT || 13096);
-const PREFIX = '/api/ai-crm';
+const PREFIX = (process.env.AI_CRM_API_BASE || '/api/ai-crm').replace(/\/+$/, '') || '/api/ai-crm';
 const UPSTREAM = `http://127.0.0.1:${PORT}`;
 const PID_FILE = path.join(ROOT, 'tmp', 'uvicorn.pid');
 const LOG_FILE = path.join(ROOT, 'tmp', 'uvicorn.log');
@@ -74,7 +74,12 @@ function ensureUpstream() {
           ...process.env,
           AI_CRM_PASSENGER: '1',
           AI_CRM_TRUST_PROXY: '1',
+          AI_CRM_API_BASE: PREFIX,
+          AI_CRM_SAMPLE_BASE: process.env.AI_CRM_SAMPLE_BASE || '/sample/ai-crm/',
           AI_CRM_MODEL: process.env.AI_CRM_MODEL || 'auto',
+          AI_CRM_LIMITS_ENABLED: '1',
+          AI_CRM_DISABLE_LIMITS: '',
+          AI_CRM_LOCAL_DEV: '',
           PATH: `${path.join(ROOT, '.venv', 'bin')}:${process.env.PATH || ''}`,
         },
         detached: true,
